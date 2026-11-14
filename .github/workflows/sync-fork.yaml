@@ -1,0 +1,52 @@
+name: Sync Fork
+
+on:
+  schedule:
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout fork
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Add upstream remote
+        run: |
+          git remote add upstream https://github.com/miantiao-me/Sink.git
+          git fetch upstream
+
+      - name: Backup local files
+        run: |
+          mkdir -p /tmp/sync-backup/.github/workflows
+          cp wrangler.jsonc /tmp/sync-backup/wrangler.jsonc || true
+          cp .github/workflows/sync-fork.yaml /tmp/sync-backup/.github/workflows/sync-fork.yaml || true
+
+      - name: Force sync from upstream
+        run: |
+          git checkout master
+          git reset --hard upstream/master
+
+      - name: Restore local files
+        run: |
+          mkdir -p .github/workflows
+          cp /tmp/sync-backup/wrangler.jsonc wrangler.jsonc || true
+          cp /tmp/sync-backup/.github/workflows/sync-fork.yaml .github/workflows/sync-fork.yaml || true
+
+      - name: Commit and push preserved files
+        run: |
+          git add wrangler.jsonc .github/workflows/sync-fork.yaml
+          git commit -m "Preserve local fork config" || echo "No local files changed"
+          git push --force origin master
